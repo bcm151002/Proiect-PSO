@@ -68,15 +68,12 @@ const char *get_mime_type(const char *file_ext) {
     }
 }
 
-// build HTTP header
-void build_http_response(const char *file_name, 
-                        const char *file_ext, 
-                        char *response, 
-                        size_t *response_len) {
-                            
-
-
-    // if file doesn't exists
+void build_http_response(const char *file_name,
+                        const char *file_ext,
+                        char *response,
+                        size_t *response_len,
+                        const char *post_data) {
+    // if file doesn't exist
     int file_fd = open(file_name, O_RDONLY);
     if (file_fd == -1) {
         snprintf(response, BUFFER_SIZE,
@@ -97,21 +94,43 @@ void build_http_response(const char *file_name,
     char *header = (char *)malloc(BUFFER_SIZE * sizeof(char));
     snprintf(header, BUFFER_SIZE,
              "HTTP/1.1 200 OK\r\n"
-             "Content-Type: %s\r\n"
-             "Content-Length: %ld\r\n"
-             "\r\n",
-             mime_type, file_size);
-    
+             "Content-Type: %s\r\n",
+             mime_type);
 
-    // copy header to response buffer
-    *response_len = 0;
-    memcpy(response, header, strlen(header));
-    *response_len += strlen(header);
+    // If there's POST data, add it within the HTML content
+    if (post_data) {
+        strcat(header, "Content-Length: ");
+        char post_length[20];  // Adjust the size if necessary
+        snprintf(post_length, sizeof(post_length), "%ld", file_size + strlen(post_data));
+        strcat(header, post_length);
+        strcat(header, "\r\n");
+        strcat(header, "\r\n");
 
-    // copy file to response buffer
-    ssize_t bytes_read;
-    while ((bytes_read = read(file_fd, response + *response_len, BUFFER_SIZE - *response_len)) > 0) {
-        *response_len += bytes_read;
+        // Copy header to response buffer
+        memcpy(response, header, strlen(header));
+        *response_len = strlen(header);
+
+        // Copy file to response buffer
+        ssize_t bytes_read;
+        while ((bytes_read = read(file_fd, response + *response_len, BUFFER_SIZE - *response_len)) > 0) {
+            *response_len += bytes_read;
+        }
+
+        // Copy post data to response buffer after the file content
+        memcpy(response + *response_len, post_data, strlen(post_data));
+        *response_len += strlen(post_data);
+    } else {
+        // If there's no POST data, add Content-Length normally
+        snprintf(header + strlen(header), BUFFER_SIZE - strlen(header),
+                 "Content-Length: %ld\r\n\r\n", file_size);
+        *response_len += strlen(header);
+
+        // Copy header and file content to response buffer
+        memcpy(response, header, *response_len);
+        ssize_t bytes_read;
+        while ((bytes_read = read(file_fd, response + *response_len, BUFFER_SIZE - *response_len)) > 0) {
+            *response_len += bytes_read;
+        }
     }
 
     free(header);
@@ -122,7 +141,7 @@ void *handle_connection(void *server_void_ptr) {
 
     Server *server = (Server *)server_void_ptr;
 
-    char response[MAX_SIZE];
+    //char response[MAX_SIZE];
 
     while (1) {
         sem_wait(server->queue_sem);
@@ -138,7 +157,6 @@ void *handle_connection(void *server_void_ptr) {
             if (recv_size <= 0) {
                 break;
             }
-
             printf("Received request: %s\n", buffer);
 
             if (strncmp(buffer, "GET", 3) == 0) {
@@ -159,7 +177,7 @@ void *handle_connection(void *server_void_ptr) {
                         
                         char *file_name=url_decode(url_encoded_file_name);
 
-                            printf("\n----------\n%s\n", file_name);
+                        printf("\n----------\n%s\n", file_name);
                         
                         // get file extension
                         char file_ext[32];
@@ -168,12 +186,11 @@ void *handle_connection(void *server_void_ptr) {
                         // build HTTP response
                         char *response = (char *)malloc(MAX_SIZE * 2 * sizeof(char));
                         size_t response_len;
-                        build_http_response(file_name, file_ext, response, &response_len);
+                        build_http_response(file_name, file_ext, response, &response_len, NULL);
 
                         // send HTTP response to client
                         send(client_fd, response, response_len, 0);
 
-                            printf("\n%s\n", response);
 
                         free(response);
                         free(file_name);
@@ -183,29 +200,33 @@ void *handle_connection(void *server_void_ptr) {
             
 
             } else if (strncmp(buffer, "POST", 4) == 0) {
-                
-                // Parse URL-encoded form data
                 char *body_start = strstr(buffer, "\r\n\r\n") + 4;
                 char body[MAX_SIZE];
                 strncpy(body, body_start, recv_size - (body_start - buffer));
                 body[recv_size - (body_start - buffer)] = '\0';
 
-                // Parse the POST data
-                char *response = (char *)malloc(MAX_SIZE * 2 * sizeof(char));
+                printf("Body: %s\n", body);
+
+                // Build the HTTP response
+                char response[MAX_SIZE * 2];
                 size_t response_len;
 
-                build_http_response("index2.html", "html", response, &response_len);
+                // Embed the body data into the HTML
+                // char html[MAX_SIZE * 2];
+                // snprintf(html, sizeof(html), "<!DOCTYPE html>\n<html>\n<head>\n<title>Data Display</title>\n</head>\n<body>\n<h1>Welcome to the Data Display Page</h1>\n<p id=\"data\">%s</p>\n</body>\n</html>", body);
 
-                printf("%s", response);
+                build_http_response("index2.html", "html", response, &response_len, body);
 
-                printf("\nOpened\n");
+                printf("Response: %s\n", response);
 
                 send(client_fd, response, response_len, 0);
 
-                close(client_fd);
-            
+                //printf("\n\n\n\nCombined: %s\n\n\n\n",response);
 
+                close(client_fd);
             }
+
+
 
         }
     
@@ -227,6 +248,13 @@ int main() {
     if ((server_fd = socket(AF_INET, SOCK_STREAM, 0)) == -1) {
         perror("socket");
         exit(1);
+    }
+
+    int reuse = 1; 
+    if (setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse)) < 0) {
+        perror("Setarea opțiunii SO_REUSEADDR a eșuat");
+        close(server_fd);
+        exit(EXIT_FAILURE);
     }
 
     server_addr.sin_family = AF_INET;
