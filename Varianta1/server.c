@@ -9,6 +9,7 @@
 #include <fcntl.h>
 #include <sys/stat.h>
 
+#define MAX_SIZE 2048
 #define BUFFER_SIZE 104857600
 #define MAX_QUEUE 10
 #define THREAD_POOL_SIZE 5
@@ -33,12 +34,7 @@ char *url_decode(const char *src) {
     for (size_t i = 0; i < src_len; ++i) {
         if (src[i] == '%' && i + 2 < src_len) {
             char hex[3] = { src[i + 1], src[i + 2], '\0' };
-
-            int hex_val;
-            sscanf(hex, "%x", &hex_val);
-
-            decoded[decoded_len++] = hex_val;
-
+            decoded[decoded_len++] = (char)strtol(hex, NULL, 16);
             i += 2;
         } else {
             decoded[decoded_len++] = src[i];
@@ -126,7 +122,7 @@ void *handle_connection(void *server_void_ptr) {
 
     Server *server = (Server *)server_void_ptr;
 
-    char response[BUFFER_SIZE];
+    char response[MAX_SIZE];
 
     while (1) {
         sem_wait(server->queue_sem);
@@ -136,8 +132,8 @@ void *handle_connection(void *server_void_ptr) {
         printf("Accepted connection, client_fd = %d\n", client_fd);
 
         while (1) { // Loop to handle multiple requests in a single connection
-            char buffer[BUFFER_SIZE];
-            ssize_t recv_size = recv(client_fd, buffer, BUFFER_SIZE, 0);
+            char buffer[MAX_SIZE];
+            ssize_t recv_size = recv(client_fd, buffer, MAX_SIZE, 0);
 
             if (recv_size <= 0) {
                 break;
@@ -170,7 +166,7 @@ void *handle_connection(void *server_void_ptr) {
                         strcpy(file_ext, get_file_extension(file_name));
 
                         // build HTTP response
-                        char *response = (char *)malloc(BUFFER_SIZE * 2 * sizeof(char));
+                        char *response = (char *)malloc(MAX_SIZE * 2 * sizeof(char));
                         size_t response_len;
                         build_http_response(file_name, file_ext, response, &response_len);
 
@@ -190,12 +186,12 @@ void *handle_connection(void *server_void_ptr) {
                 
                 // Parse URL-encoded form data
                 char *body_start = strstr(buffer, "\r\n\r\n") + 4;
-                char body[BUFFER_SIZE];
+                char body[MAX_SIZE];
                 strncpy(body, body_start, recv_size - (body_start - buffer));
                 body[recv_size - (body_start - buffer)] = '\0';
 
                 // Parse the POST data
-                char *response = (char *)malloc(BUFFER_SIZE * 2 * sizeof(char));
+                char *response = (char *)malloc(MAX_SIZE * 2 * sizeof(char));
                 size_t response_len;
 
                 build_http_response("index2.html", "html", response, &response_len);
