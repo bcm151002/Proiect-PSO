@@ -8,8 +8,9 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include <sys/stat.h>
+#include <ctype.h>
 
-#define MAX_SIZE 2048
+#define MAX_SIZE 4096
 #define BUFFER_SIZE 104857600
 #define MAX_QUEUE 10
 #define THREAD_POOL_SIZE 5
@@ -25,6 +26,15 @@ typedef struct {
     ConnectionQueue *queue;
     sem_t *queue_sem;
 } Server;
+
+typedef struct {
+    char *name;
+    int *phone;
+    char *color;
+    char *qualities;
+    char *income;
+    char *sociability;
+} date_formular;
 
 char *url_decode(const char *src) {
     size_t src_len = strlen(src);
@@ -55,24 +65,35 @@ const char *get_file_extension(const char *file_name) {
 }
 
 const char *get_mime_type(const char *file_ext) {
-    if (strcasecmp(file_ext, "html") == 0 || strcasecmp(file_ext, "htm") == 0) {
+    char lowercase_extension[strlen(file_ext) + 1];
+    for (size_t i = 0; i < strlen(file_ext); i++) {
+        lowercase_extension[i] = tolower(file_ext[i]);
+    }
+    lowercase_extension[strlen(file_ext)] = '\0';
+
+    if (strcmp(lowercase_extension, "html") == 0 || strcmp(lowercase_extension, "htm") == 0) {
         return "text/html";
-    } else if (strcasecmp(file_ext, "txt") == 0) {
+    } else if (strcmp(lowercase_extension, "txt") == 0) {
         return "text/plain";
-    } else if (strcasecmp(file_ext, "jpg") == 0 || strcasecmp(file_ext, "jpeg") == 0) {
+    } else if (strcmp(lowercase_extension, "css") == 0) {
+        return "text/css";
+    } else if (strcmp(lowercase_extension, "js") == 0) {
+        return "application/javascript";
+    } else if (strcmp(lowercase_extension, "jpg") == 0 || strcmp(lowercase_extension, "jpeg") == 0) {
         return "image/jpeg";
-    } else if (strcasecmp(file_ext, "png") == 0) {
+    } else if (strcmp(lowercase_extension, "png") == 0) {
         return "image/png";
+    } else if (strcmp(lowercase_extension, "gif") == 0) {
+        return "image/gif";
+    } else if (strcmp(lowercase_extension, "pdf") == 0) {
+        return "application/pdf";
     } else {
         return "application/octet-stream";
     }
 }
 
-void build_http_response(const char *file_name,
-                        const char *file_ext,
-                        char *response,
-                        size_t *response_len,
-                        const char *post_data) {
+void build_http_response(const char *file_name, const char *file_ext, char *response, size_t *response_len, const char *post_data) {
+
     // if file doesn't exist
     int file_fd = open(file_name, O_RDONLY);
     if (file_fd == -1) {
@@ -137,18 +158,70 @@ void build_http_response(const char *file_name,
     close(file_fd);
 }
 
+void replace_plus_with_space(char *str) {
+    for(int i = 0; str[i]; i++) {
+        if(str[i] == '+') {
+            str[i] = ' ';
+        }
+    }
+}
+
+void parse_input_string(const char *input, date_formular *data) {
+    char *token, *saveptr;
+    char *input_copy = strdup(input); // Duplicate the input string for tokenization
+
+    // Tokenize the input string using '&' and '=' as delimiters
+    token = strtok_r(input_copy, "&=", &saveptr);
+
+    while (token != NULL) {
+        char *value = strtok_r(NULL, "&=", &saveptr);
+        replace_plus_with_space(value);
+
+        if (strcmp(token, "nume") == 0) {
+            data->name = strdup(value);
+        } else if (strcmp(token, "Telefon") == 0) {
+            // Assuming phone is an integer, convert the string to an integer
+            data->phone = malloc(sizeof(int));
+            *data->phone = atoi(value);
+        } else if (strcmp(token, "zona") == 0) {
+            data->color = strdup(value);
+        } else if (strcmp(token, "calitati") == 0) {
+            data->qualities = strdup(value);
+        } else if (strcmp(token, "venituri") == 0) {
+            data->income = strdup(value);
+        } else if (strcmp(token, "sociabil") == 0) {
+            // Assuming sociability is a string, only take the first value
+            data->sociability = strdup(value);
+        }
+
+        token = strtok_r(NULL, "&=", &saveptr);
+    }
+
+    free(input_copy);
+}
+
+char *print_parsed_data(const date_formular *data) {
+    // Allocate memory for the output string
+    char *output = (char *)malloc(MAX_SIZE); // Adjust the size accordingly
+
+    // Format the output string
+    snprintf(output, 1024, "Name: %s\nPhone: %d\nColor: %s\nQualities: %s\nIncome: %s\nSociability: %s\n",
+             data->name, (data->phone != NULL) ? *data->phone : 0, data->color,
+             data->qualities, data->income, data->sociability);
+
+    return output;
+}
+
 void *handle_connection(void *server_void_ptr) {
 
     Server *server = (Server *)server_void_ptr;
-
-    //char response[MAX_SIZE];
 
     while (1) {
         sem_wait(server->queue_sem);
         int client_fd = server->queue->queue[server->queue->front];
         server->queue->front = (server->queue->front + 1) % MAX_QUEUE;
 
-        printf("Accepted connection, client_fd = %d\n", client_fd);
+        printf("\n----------\nAccepted connection, client_fd = %d\n----------\n", client_fd);
 
         while (1) { // Loop to handle multiple requests in a single connection
             char buffer[MAX_SIZE];
@@ -157,7 +230,8 @@ void *handle_connection(void *server_void_ptr) {
             if (recv_size <= 0) {
                 break;
             }
-            printf("Received request: %s\n", buffer);
+
+            printf("\n----------\nReceived request: %s\n----------\n",  buffer);
 
             if (strncmp(buffer, "GET", 3) == 0) {
                 char *get_token = "GET /";
@@ -169,6 +243,9 @@ void *handle_connection(void *server_void_ptr) {
                     char *file_name_end = strchr(file_name_start, ' ');
 
                     if (file_name_end != NULL) {
+
+                        printf("\n----------\nMethod: GET\n----------\n");
+
                         // decode URL
                         *file_name_end = '\0';
                         char *url_encoded_file_name = file_name_start;
@@ -177,11 +254,13 @@ void *handle_connection(void *server_void_ptr) {
                         
                         char *file_name=url_decode(url_encoded_file_name);
 
-                        printf("\n----------\n%s\n", file_name);
+                        printf("\n----------\nFile name: %s\n----------\n", file_name);
                         
                         // get file extension
                         char file_ext[32];
                         strcpy(file_ext, get_file_extension(file_name));
+
+                        printf("\n----------\nFile extension: %s\n----------\n", file_ext);
 
                         // build HTTP response
                         char *response = (char *)malloc(MAX_SIZE * 2 * sizeof(char));
@@ -191,39 +270,49 @@ void *handle_connection(void *server_void_ptr) {
                         // send HTTP response to client
                         send(client_fd, response, response_len, 0);
 
+                        printf("\n----------\nThe response have been sent.\n----------\n");
 
                         free(response);
                         free(file_name);
 
+                        //close(client_fd);
+
                     }
-                }
+               }
             
 
             } else if (strncmp(buffer, "POST", 4) == 0) {
+
+                printf("\n----------\nMethod: POST\n----------\n");
+
                 char *body_start = strstr(buffer, "\r\n\r\n") + 4;
                 char body[MAX_SIZE];
+
                 strncpy(body, body_start, recv_size - (body_start - buffer));
                 body[recv_size - (body_start - buffer)] = '\0';
 
-                printf("Body: %s\n", body);
+                printf("\n----------\nBody: %s\n----------\n",body);
 
                 // Build the HTTP response
                 char response[MAX_SIZE * 2];
                 size_t response_len;
 
-                // Embed the body data into the HTML
-                // char html[MAX_SIZE * 2];
-                // snprintf(html, sizeof(html), "<!DOCTYPE html>\n<html>\n<head>\n<title>Data Display</title>\n</head>\n<body>\n<h1>Welcome to the Data Display Page</h1>\n<p id=\"data\">%s</p>\n</body>\n</html>", body);
+                //parsing the data
+                //parsam cu functia care returneaza body
 
-                build_http_response("index2.html", "html", response, &response_len, body);
+                date_formular data;
 
-                printf("Response: %s\n", response);
+                parse_input_string(body, &data);
+
+                
+
+                build_http_response("index2.html", "html", response, &response_len, print_parsed_data(&data));
+
+                printf("\n----------\nResponse: %s\n----------\n", response);
 
                 send(client_fd, response, response_len, 0);
 
-                //printf("\n\n\n\nCombined: %s\n\n\n\n",response);
-
-                close(client_fd);
+                //close(client_fd);
             }
 
 
@@ -231,9 +320,9 @@ void *handle_connection(void *server_void_ptr) {
         }
     
 
-            printf("Finished handling request, closing connection.\n");
+        printf("\n----------\nFinished handling request, closing connection.\n----------\n");
 
-            close(client_fd);
+        close(client_fd);
 
     }
 }
