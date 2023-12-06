@@ -1,7 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>  
-
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <style>
@@ -18,12 +17,12 @@
         <form action="index2.html" method="POST">
             <b><i>Nume si prenume:</i></b>
             <br>
-            <input name="nume" id="nume" size="50">
+            <input name="nume" id="nume" size="50" required>
             <br><br>
             <b><i>Telefon:</i></b><br>
-            <input type="text" name="Telefon" size="30"><br><br>
+            <input type="text" name="Telefon" size="30" required><br><br>
             <b><i>Alegeti culoarea preferata:</i></b>
-            <select name="zona" value="">
+            <select name="zona" required>
                 <option value="rosu">Rosu</option>
                 <option value="galben">Galben</option>
                 <option value="negru">Negru</option>
@@ -31,19 +30,20 @@
                 <option value="verde">Verde</option>
                 <option value="maro">Maro</option>
             </select><br><br>
+            <!-- Add 'required' attribute to other fields as needed -->
             <p>
             <b><i>Clasificati calitatiile dumneavoastra: </i></b><br>
-            <textarea name="calitati" rows="4" cols="60" wrap="soft"></textarea>
+            <textarea name="calitati" rows="4" cols="60" wrap="soft" required></textarea>
             <br><br>
             <b><i> Venitul personal:</i></b>
-            <input type="radio" name="venituri" value="mici">1000-1200 lei
-            <input type="radio" name="venituri" value="medii">1200-1500 lei
-            <input type="radio" name="venituri" value="mari">1500+
+            <input type="radio" name="venituri" value="mici" required>1000-1200 lei
+            <input type="radio" name="venituri" value="medii" required>1200-1500 lei
+            <input type="radio" name="venituri" value="mari" required>1500+
             <p>
             <b><i>Sunteti o persoana sociabila?:</i></b><br>
-            <input type="radio" name="sociabil" value="da">DA <br>	
-            <input type="radio" name="sociabil" value="nu">NU <br>
-            <input type="radio" name="sociabil" value="nu mereu">NU mereu <br>
+            <input type="radio" name="sociabil" value="da" required>DA <br>	
+            <input type="radio" name="sociabil" value="nu" required>NU <br>
+            <input type="radio" name="sociabil" value="nu mereu" required>NU mereu <br>
             <br>
             <p>
             <u><b><i> Inscrierea in lista pt obtinerea brosurii:</i></b></u><br>

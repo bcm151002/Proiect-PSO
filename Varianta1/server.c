@@ -143,11 +143,14 @@ void build_http_response(const char *file_name, const char *file_ext, char *resp
     } else {
         // If there's no POST data, add Content-Length normally
         snprintf(header + strlen(header), BUFFER_SIZE - strlen(header),
-                 "Content-Length: %ld\r\n\r\n", file_size);
-        *response_len += strlen(header);
+                "Content-Length: %ld\r\n\r\n", file_size);
+        size_t header_len = strlen(header);
 
-        // Copy header and file content to response buffer
-        memcpy(response, header, *response_len);
+        // Copy header to response buffer
+        memcpy(response, header, header_len);
+        *response_len = header_len;
+
+        // Copy file content to response buffer
         ssize_t bytes_read;
         while ((bytes_read = read(file_fd, response + *response_len, BUFFER_SIZE - *response_len)) > 0) {
             *response_len += bytes_read;
@@ -155,7 +158,7 @@ void build_http_response(const char *file_name, const char *file_ext, char *resp
     }
 
     free(header);
-    close(file_fd);
+    //close(file_fd);
 }
 
 void replace_plus_with_space(char *str) {
@@ -167,6 +170,14 @@ void replace_plus_with_space(char *str) {
 }
 
 void parse_input_string(const char *input, date_formular *data) {
+    // Initialize structure members with default or blank values
+    data->name = NULL;
+    data->phone = NULL;
+    data->color = NULL;
+    data->qualities = NULL;
+    data->income = NULL;
+    data->sociability = NULL;
+
     char *token, *saveptr;
     char *input_copy = strdup(input); // Duplicate the input string for tokenization
 
@@ -175,23 +186,26 @@ void parse_input_string(const char *input, date_formular *data) {
 
     while (token != NULL) {
         char *value = strtok_r(NULL, "&=", &saveptr);
-        replace_plus_with_space(value);
 
-        if (strcmp(token, "nume") == 0) {
-            data->name = strdup(value);
-        } else if (strcmp(token, "Telefon") == 0) {
-            // Assuming phone is an integer, convert the string to an integer
-            data->phone = malloc(sizeof(int));
-            *data->phone = atoi(value);
-        } else if (strcmp(token, "zona") == 0) {
-            data->color = strdup(value);
-        } else if (strcmp(token, "calitati") == 0) {
-            data->qualities = strdup(value);
-        } else if (strcmp(token, "venituri") == 0) {
-            data->income = strdup(value);
-        } else if (strcmp(token, "sociabil") == 0) {
-            // Assuming sociability is a string, only take the first value
-            data->sociability = strdup(value);
+        // Check if the value is not NULL and not empty or contains non-space characters before assigning it
+        if (value != NULL) {
+            replace_plus_with_space(value);
+
+            if (strcmp(token, "nume") == 0) {
+                data->name = strdup(value);
+                printf("\n\n\nnume: %s\n\n\n", data->name);
+            } else if (strcmp(token, "Telefon") == 0) {
+                data->phone = malloc(sizeof(int));
+                *data->phone = atoi(value);
+            } else if (strcmp(token, "zona") == 0) {
+                data->color = strdup(value);
+            } else if (strcmp(token, "calitati") == 0) {
+                data->qualities = strdup(value);
+            } else if (strcmp(token, "venituri") == 0) {
+                data->income = strdup(value);
+            } else if (strcmp(token, "sociabil") == 0) {
+                data->sociability = strdup(value);
+            }
         }
 
         token = strtok_r(NULL, "&=", &saveptr);
@@ -205,7 +219,7 @@ char *print_parsed_data(const date_formular *data) {
     char *output = (char *)malloc(MAX_SIZE); // Adjust the size accordingly
 
     // Format the output string
-    snprintf(output, 1024, "Name: %s\nPhone: %d\nColor: %s\nQualities: %s\nIncome: %s\nSociability: %s\n",
+    snprintf(output, MAX_SIZE, "Name: %s\nPhone: %d\nColor: %s\nQualities: %s\nIncome: %s\nSociability: %s\n",
              data->name, (data->phone != NULL) ? *data->phone : 0, data->color,
              data->qualities, data->income, data->sociability);
 
@@ -265,12 +279,19 @@ void *handle_connection(void *server_void_ptr) {
                         // build HTTP response
                         char *response = (char *)malloc(MAX_SIZE * 2 * sizeof(char));
                         size_t response_len;
+
+                        printf("\n----------\nTrying to build the response.\n----------\n");
+
                         build_http_response(file_name, file_ext, response, &response_len, NULL);
+
+                        printf("\n----------\nThis is the reponse: \n %s\n----------\n",response);
+
+                        printf("\n----------\nWe've built the response.\nTrying to send the response.\n----------\n");
 
                         // send HTTP response to client
                         send(client_fd, response, response_len, 0);
 
-                        printf("\n----------\nThe response have been sent.\n----------\n");
+                        printf("\n----------\nThe response has been sent.\n----------\n");
 
                         free(response);
                         free(file_name);
@@ -297,14 +318,10 @@ void *handle_connection(void *server_void_ptr) {
                 char response[MAX_SIZE * 2];
                 size_t response_len;
 
-                //parsing the data
-                //parsam cu functia care returneaza body
-
+                // Parsing the data
                 date_formular data;
 
                 parse_input_string(body, &data);
-
-                
 
                 build_http_response("index2.html", "html", response, &response_len, print_parsed_data(&data));
 
