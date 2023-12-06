@@ -136,7 +136,7 @@ void build_http_response(const char *file_name, const char *file_ext, char *resp
         while ((bytes_read = read(file_fd, response + *response_len, BUFFER_SIZE - *response_len)) > 0) {
             *response_len += bytes_read;
         }
-
+        
         // Copy post data to response buffer after the file content
         memcpy(response + *response_len, post_data, strlen(post_data));
         *response_len += strlen(post_data);
@@ -280,6 +280,9 @@ void *handle_connection(void *server_void_ptr) {
                         char *response = (char *)malloc(MAX_SIZE * 2 * sizeof(char));
                         size_t response_len;
 
+                        // Reset the response buffer
+                        memset(response, 0, MAX_SIZE * 2 * sizeof(char));
+
                         printf("\n----------\nTrying to build the response.\n----------\n");
 
                         build_http_response(file_name, file_ext, response, &response_len, NULL);
@@ -329,7 +332,6 @@ void *handle_connection(void *server_void_ptr) {
 
                 send(client_fd, response, response_len, 0);
 
-                //close(client_fd);
             }
 
 
