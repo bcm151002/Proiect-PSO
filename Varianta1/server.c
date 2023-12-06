@@ -9,6 +9,7 @@
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <ctype.h>
+#include <sys/wait.h>
 
 #define MAX_SIZE 4096
 #define BUFFER_SIZE 104857600
@@ -34,6 +35,7 @@ typedef struct {
     char *qualities;
     char *income;
     char *sociability;
+    char *data_from_cgi;
 } date_formular;
 
 char *url_decode(const char *src) {
@@ -177,6 +179,7 @@ void parse_input_string(const char *input, date_formular *data) {
     data->qualities = NULL;
     data->income = NULL;
     data->sociability = NULL;
+    data->data_from_cgi=NULL;
 
     char *token, *saveptr;
     char *input_copy = strdup(input); // Duplicate the input string for tokenization
@@ -219,11 +222,64 @@ char *print_parsed_data(const date_formular *data) {
     char *output = (char *)malloc(MAX_SIZE); // Adjust the size accordingly
 
     // Format the output string
-    snprintf(output, MAX_SIZE, "Name: %s\nPhone: %d\nColor: %s\nQualities: %s\nIncome: %s\nSociability: %s\n",
+    snprintf(output, MAX_SIZE, "Name: %s\nPhone: %d\nColor: %s\nQualities: %s\nIncome: %s\nSociability: %s\nData from CGI: %s\n",
              data->name, (data->phone != NULL) ? *data->phone : 0, data->color,
-             data->qualities, data->income, data->sociability);
+             data->qualities, data->income, data->sociability, data->data_from_cgi);
 
     return output;
+}
+
+void* execute_script() {
+    // Replace "your_cgi_script" with the actual path to your CGI script
+    const char *cgi_script = "cgi-bin/ceva.sh";
+
+    int pipefd[2];
+    if (pipe(pipefd) == -1) {
+        fprintf(stderr, "Error creating pipe\n");
+        exit(EXIT_FAILURE);
+    }
+
+    pid_t child_pid = fork();
+
+    if (child_pid == -1) {
+        // Handle error
+        fprintf(stderr, "Error forking process\n");
+    } else if (child_pid == 0) {
+        // This code runs in the child process
+        close(pipefd[0]); // Close read end of the pipe
+        dup2(pipefd[1], STDOUT_FILENO); // Redirect stdout to the write end of the pipe
+
+        int result = execl("/bin/bash", "bash", cgi_script, (char*)NULL);
+
+        if (result == -1) {
+            // Handle error
+            fprintf(stderr, "Error executing CGI script\n");
+            exit(EXIT_FAILURE);
+        }
+    } else {
+        // This code runs in the parent process
+        close(pipefd[1]); // Close write end of the pipe
+
+        char *output = malloc(MAX_SIZE); // Allocate memory on the heap
+        if (output == NULL) {
+            fprintf(stderr, "Error allocating memory\n");
+            exit(EXIT_FAILURE);
+        }
+
+        read(pipefd[0], output, MAX_SIZE); // Read from the pipe
+
+        // Optionally, you can wait for the child process to finish
+        int status;
+        waitpid(child_pid, &status, 0);
+
+        // Optionally, you can handle the exit status of the child process
+        if (WIFEXITED(status)) {
+            printf("Child process exited with status %d\n", WEXITSTATUS(status));
+        }
+
+        printf("\n\n\nSuntem in fct de executie, ouput: %s",output);
+        return output; // Return the output of the CGI script
+    }
 }
 
 void *handle_connection(void *server_void_ptr) {
@@ -307,6 +363,18 @@ void *handle_connection(void *server_void_ptr) {
 
             } else if (strncmp(buffer, "POST", 4) == 0) {
 
+                char *ceva;
+
+            if (strstr(buffer, "cgi-bin/") != NULL) {
+                printf("\n----------\nAm intrat in if-ul de executare script\n----------\n");
+                // Execute CGI script in a new thread
+                pthread_t cgi_thread_id;
+                pthread_create(&cgi_thread_id, NULL, execute_script, NULL);
+                pthread_join(cgi_thread_id, (void**)&ceva); // Wait for the script to finish and capture its output
+            }
+
+                printf("\n----------\nDin script: %s\n----------\n", ceva);
+
                 printf("\n----------\nMethod: POST\n----------\n");
 
                 char *body_start = strstr(buffer, "\r\n\r\n") + 4;
@@ -325,6 +393,8 @@ void *handle_connection(void *server_void_ptr) {
                 date_formular data;
 
                 parse_input_string(body, &data);
+
+                data.data_from_cgi=ceva;
 
                 build_http_response("index2.html", "html", response, &response_len, print_parsed_data(&data));
 
