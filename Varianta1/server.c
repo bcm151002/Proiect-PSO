@@ -243,7 +243,7 @@ void* execute_script() {
     if (child_pid == -1) {
         fprintf(stderr, "Error forking process\n");
     } else if (child_pid == 0) {
-        // This code runs in the child process
+
         close(pipefd[0]); // Close read end of the pipe
 
         dup2(pipefd[1], STDOUT_FILENO); // Redirect stdout to the write end of the pipe
@@ -269,11 +269,6 @@ void* execute_script() {
 
         int status;
         waitpid(child_pid, &status, 0);
-
-        // Optionally, you can handle the exit status of the child process
-        if (WIFEXITED(status)) {
-            printf("Child process exited with status %d\n", WEXITSTATUS(status));
-        }
 
         printf("\n----------\nWe've executed the script, this is the ouput: %s\n----------\n",output);
         return output;
@@ -331,11 +326,11 @@ void *handle_connection(void *server_void_ptr) {
                         printf("\n----------\nFile extension: %s\n----------\n", file_ext);
 
                         // build HTTP response
-                        char *response = (char *)malloc(MAX_SIZE * 2 * sizeof(char));
+                        char *response = (char *)malloc(MAX_SIZE * 10 * sizeof(char));
                         size_t response_len;
 
                         // Reset the response buffer
-                        memset(response, 0, MAX_SIZE * 2 * sizeof(char));
+                        memset(response, 0, MAX_SIZE * 10 * sizeof(char));
 
                         printf("\n----------\nTrying to build the response.\n----------\n");
 
@@ -386,7 +381,7 @@ void *handle_connection(void *server_void_ptr) {
                 printf("\n----------\nBody: %s\n----------\n",body);
 
                 // Build the HTTP response
-                char response[MAX_SIZE * 2];
+                char response[MAX_SIZE * 10];
                 size_t response_len;
 
                 // Parsing the data
