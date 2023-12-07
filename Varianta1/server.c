@@ -230,7 +230,6 @@ char *print_parsed_data(const date_formular *data) {
 }
 
 void* execute_script() {
-    // Replace "your_cgi_script" with the actual path to your CGI script
     const char *cgi_script = "cgi-bin/ceva.sh";
 
     int pipefd[2];
@@ -242,11 +241,11 @@ void* execute_script() {
     pid_t child_pid = fork();
 
     if (child_pid == -1) {
-        // Handle error
         fprintf(stderr, "Error forking process\n");
     } else if (child_pid == 0) {
         // This code runs in the child process
         close(pipefd[0]); // Close read end of the pipe
+
         dup2(pipefd[1], STDOUT_FILENO); // Redirect stdout to the write end of the pipe
 
         int result = execl("/bin/bash", "bash", cgi_script, (char*)NULL);
@@ -257,18 +256,17 @@ void* execute_script() {
             exit(EXIT_FAILURE);
         }
     } else {
-        // This code runs in the parent process
+        
         close(pipefd[1]); // Close write end of the pipe
 
-        char *output = malloc(MAX_SIZE); // Allocate memory on the heap
+        char *output = malloc(MAX_SIZE);
         if (output == NULL) {
             fprintf(stderr, "Error allocating memory\n");
             exit(EXIT_FAILURE);
         }
 
-        read(pipefd[0], output, MAX_SIZE); // Read from the pipe
+        read(pipefd[0], output, MAX_SIZE);
 
-        // Optionally, you can wait for the child process to finish
         int status;
         waitpid(child_pid, &status, 0);
 
@@ -277,8 +275,8 @@ void* execute_script() {
             printf("Child process exited with status %d\n", WEXITSTATUS(status));
         }
 
-        printf("\n\n\nSuntem in fct de executie, ouput: %s",output);
-        return output; // Return the output of the CGI script
+        printf("\n----------\nWe've executed the script, this is the ouput: %s\n----------\n",output);
+        return output;
     }
 }
 
@@ -363,17 +361,19 @@ void *handle_connection(void *server_void_ptr) {
 
             } else if (strncmp(buffer, "POST", 4) == 0) {
 
-                char *ceva;
+                char *cgi_output;
 
             if (strstr(buffer, "cgi-bin/") != NULL) {
                 printf("\n----------\nAm intrat in if-ul de executare script\n----------\n");
                 // Execute CGI script in a new thread
                 pthread_t cgi_thread_id;
                 pthread_create(&cgi_thread_id, NULL, execute_script, NULL);
-                pthread_join(cgi_thread_id, (void**)&ceva); // Wait for the script to finish and capture its output
+                pthread_join(cgi_thread_id, (void**)&cgi_output); // Wait for the script to finish and capture its output
+
+                //ceva = execute_script();
             }
 
-                printf("\n----------\nDin script: %s\n----------\n", ceva);
+                printf("\n----------\nDin script: %s\n----------\n", cgi_output);
 
                 printf("\n----------\nMethod: POST\n----------\n");
 
@@ -394,7 +394,7 @@ void *handle_connection(void *server_void_ptr) {
 
                 parse_input_string(body, &data);
 
-                data.data_from_cgi=ceva;
+                data.data_from_cgi = cgi_output;
 
                 build_http_response("index2.html", "html", response, &response_len, print_parsed_data(&data));
 
