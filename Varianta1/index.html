@@ -14,7 +14,7 @@
 <body bgcolor="#CCFFF">
     <h2> Formular informativ </h2>
     <font size="3" face="arial">
-        <form action="cgi-bin/ceva.sh" method="POST">
+        <form id="myForm" method="POST">
             <b><i>Nume si prenume:</i></b>
             <br>
             <input name="nume" id="nume" size="50" required>
@@ -47,11 +47,27 @@
             <br>
             <p>
             <u><b><i> Inscrierea in lista pt obtinerea brosurii:</i></b></u><br>
-            <input type="submit" name="tip" value="Trimitere"><br>
-            <input type="reset" name="tip" value="Stergerea date formular"><br>
+
+            <button type="reset" name="tip" value="Stergerea date formular">Stergerea date formular</button><br>
+
+            <!-- Additional button 1 with a different action -->
+            <button type="button" onclick="setFormAction('cgi-bin/ceva.sh')">Button Script1</button>
+
+            <!-- Additional button 2 with a different action -->
+            <button type="button" onclick="setFormAction('index2.html')">Button Pagina2</button>
+
+            <br>
             <a href="https://github.com/JeffreytheCoder/Simple-HTTP-Server/blob/master/ok.jpg">Link text</a><br>
             <a href="https://github.com/JeffreytheCoder/Simple-HTTP-Server/blob/master/ok.jpg">Link text</a>
         </form>
     </font>
+
+    <!-- JavaScript function to set form action -->
+    <script>
+        function setFormAction(action) {
+            document.getElementById('myForm').action = action;
+            document.getElementById('myForm').submit();
+        }
+    </script>
 </body>
 </html>
