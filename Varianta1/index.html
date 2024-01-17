@@ -14,6 +14,7 @@
 <body bgcolor="#CCFFF">
     <h2> Formular informativ </h2>
     <font size="3" face="arial">
+
         <form id="myForm" method="POST">
             <b><i>Nume si prenume:</i></b>
             <br>
@@ -50,15 +51,20 @@
 
             <button type="reset" name="tip" value="Stergerea date formular">Stergerea date formular</button><br>
 
-            <!-- Additional button 1 with a different action -->
-            <button type="button" onclick="setFormAction('cgi-bin/ceva.sh')">Button Script1</button>
+            <button type="button" onclick="setFormAction('cgi-bin/ceva.sh')">Button Script</button>
 
-            <!-- Additional button 2 with a different action -->
-            <button type="button" onclick="setFormAction('index2.html')">Button Pagina2</button>
+            <button type="button" onclick="setFormAction('index2.html')">Button Pagina</button>
 
             <br>
             <a href="https://github.com/JeffreytheCoder/Simple-HTTP-Server/blob/master/ok.jpg">Link text</a><br>
             <a href="https://github.com/JeffreytheCoder/Simple-HTTP-Server/blob/master/ok.jpg">Link text</a>
+        </form>
+        <form id="myForm2" method="GET">
+            <b><i>Username:</i></b>
+            <br>
+            <input name="username" id="username" size="50" required>
+            <br><br>
+            <button type="button" onclick="setFormAction2('cgi-bin/ceva2.sh')">Button Script2</button>
         </form>
     </font>
 
@@ -67,6 +73,13 @@
         function setFormAction(action) {
             document.getElementById('myForm').action = action;
             document.getElementById('myForm').submit();
+        }
+    </script>
+
+    <script>
+        function setFormAction2(action) {
+            document.getElementById('myForm2').action = action;
+            document.getElementById('myForm2').submit();
         }
     </script>
 </body>

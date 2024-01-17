@@ -1,15 +1,99 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
+<head>  
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Your Data</title>
+    <style>
+        body {
+            height: 50%;
+            width: 50%;
+        }
+    </style>
 </head>
-<body>
+<body bgcolor="#CCFFF">
+    <h2> Formular informativ </h2>
+    <font size="3" face="arial">
+        <form id="myForm" action="index2.html" method="POST">
+            <b><i>Nume si prenume:</i></b>
+            <br>
+            <input name="nume" id="nume" size="50" required>
+            <br><br>
+            <b><i>Telefon:</i></b><br>
+            <input type="text" name="Telefon" size="30" required><br><br>
+            <b><i>Alegeti culoarea preferata:</i></b>
+            <select name="zona" required>
+                <option value="rosu">Rosu</option>
+                <option value="galben">Galben</option>
+                <option value="negru">Negru</option>
+                <option value="albastru">Albastru</option>
+                <option value="verde">Verde</option>
+                <option value="maro">Maro</option>
+            </select><br><br>
+            <!-- Add 'required' attribute to other fields as needed -->
+            <p>
+            <b><i>Clasificati calitatiile dumneavoastra: </i></b><br>
+            <textarea name="calitati" rows="4" cols="60" wrap="soft" required></textarea>
+            <br><br>
+            <b><i> Venitul personal:</i></b>
+            <input type="radio" name="venituri" value="mici" required>1000-1200 lei
+            <input type="radio" name="venituri" value="medii" required>1200-1500 lei
+            <input type="radio" name="venituri" value="mari" required>1500+
+            <p>
+            <b><i>Sunteti o persoana sociabila?:</i></b><br>
+            <input type="radio" name="sociabil" value="da" required>DA <br>	
+            <input type="radio" name="sociabil" value="nu" required>NU <br>
+            <input type="radio" name="sociabil" value="nu mereu" required>NU mereu <br>
+            <br>
+            <p>
+            <u><b><i> Inscrierea in lista pt obtinerea brosurii:</i></b></u><br>
 
-<h1>Your Data</h1>
+            <input type="reset" name="tip" value="Stergerea date formular"><br>
 
+            <!-- Buton pentru cererea PUT -->
+            <button type="button" onclick="sendPutRequest()">Trimite PUT</button>
 
+            <!-- Buton pentru cererea DELETE -->
+            <button type="button" onclick="sendDeleteRequest()">Trimite DELETE</button>
+        </form>
+    </font>
 
+    <script>
+       function sendPutRequest() {
+            const formData = new FormData(document.getElementById("myForm"));
+            const xhr = new XMLHttpRequest();
+            xhr.open("PUT", "ceva.sh", true);
+            xhr.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
+            xhr.onreadystatechange = function () {
+                if (xhr.readyState === 4) {
+                    if (xhr.status === 200) {
+                        alert("Resursele au fost actualizate cu succes!");
+                        document.getElementById('myForm').submit();
+                    } else {
+                        alert("Eroare la actualizarea resurselor.");
+                    }
+                }
+            };
+            xhr.send(new URLSearchParams(formData));
+        }
+
+        function sendDeleteRequest() {
+          
+            const formData = new FormData(document.getElementById("myForm"));
+            const xhr = new XMLHttpRequest();
+            xhr.open("DELETE", "ceva.sh", true);
+            xhr.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
+            xhr.onreadystatechange = function () {
+                if (xhr.readyState === 4) {
+                    if (xhr.status === 200) {
+                        alert("Resursele au fost șterse cu succes!");
+                        document.getElementById('myForm').submit();
+                    } else {
+                        alert("Eroare la ștergerea resurselor.");
+                    }
+                }
+            };
+            xhr.send(new URLSearchParams(formData));
+        }
+    </script>
 </body>
 </html>

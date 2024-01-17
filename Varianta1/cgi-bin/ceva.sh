@@ -9,3 +9,12 @@ echo "Hello World!6"
 echo "Hello World!7"
 echo "Hello World!8"
 echo "Hello World!9"
+
+# Ia valoarea parametrului 'user' din query string
+username=$(echo "$QUERY_STRING" | grep -oP "username=\K[^&]*")
+
+if [ -n "$user" ]; then
+    echo "<p>Parametrul 'username' este: $user</p>"
+else
+    echo "<p>Parametrul 'username' nu a fost furnizat.</p>"
+fi

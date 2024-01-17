@@ -66,10 +66,28 @@ char *url_decode(const char *src) {
 
 const char *get_file_extension(const char *file_name) {
     const char *dot = strrchr(file_name, '.');
-    if (!dot || dot == file_name) {
+    const char *question_mark = strchr(file_name, '?');
+
+    // Verificare dacă există un punct și este înaintea semnului întrebare
+    if (!dot || (question_mark && dot > question_mark)) {
         return "";
     }
-    return dot + 1;
+
+    // Determină lungimea extensiei
+    size_t extension_length = (question_mark) ? (size_t)(question_mark - dot - 1) : strlen(dot + 1);
+
+    // Creează un șir nou pentru a stoca extensia
+    char *extension = malloc(extension_length + 1);
+    if (!extension) {
+        // Tratare eroare la alocare de memorie
+        return "";
+    }
+
+    // Copiază extensia în noul șir
+    strncpy(extension, dot + 1, extension_length);
+    extension[extension_length] = '\0';  // Adaugă terminatorul de șir
+
+    return extension;
 }
 
 const char *get_mime_type(const char *file_ext) {
@@ -134,6 +152,9 @@ void build_http_response(const char *file_name, const char *file_ext, char *resp
         strcat(header, post_length);
         strcat(header, "\r\n");
         strcat(header, "\r\n");
+
+        strcat(response, "?");
+        strcat(response, post_data);
 
         // Copy header to response buffer
         memcpy(response, header, strlen(header));
@@ -230,7 +251,7 @@ void parse_input_string(const char *input, date_formular *data) {
 }
 
 char *print_parsed_data(const date_formular *data) {
-    printf("\n----------\nSuntem in print parsed data, inainte e a face raspunsul pentru post\n----------\n");
+    printf("\n----------\nSuntem in print parsed data, inainte e a face raspunsul\n----------\n");
     // Allocate memory for the output string
     char *output = (char *)malloc(MAX_SIZE); // Adjust the size accordingly
 
@@ -243,7 +264,22 @@ char *print_parsed_data(const date_formular *data) {
 }
 
 void* execute_script() {
-    const char *cgi_script = fileName;
+    char *token = fileName;
+    if (strncmp(token, "cgi-bin/", 8) != 0)
+    {
+        fprintf(stderr, "Error extracting the cgi name. Token=%s, Filename=%s\n", token, fileName);
+        exit(EXIT_FAILURE);
+    }
+            printf("Token=%s, Filename=%s\n", token, fileName);
+
+    const char *cgi_script = token;
+
+    char *question = strchr(cgi_script, '?');
+    if (question != NULL)
+    {
+        *question = '\0';
+        question++;
+    }
 
     //pthread_mutex_lock(&mutex);
 
@@ -261,9 +297,15 @@ void* execute_script() {
 
         close(pipefd[0]); // Close read end of the pipe
 
+        if (question != NULL)
+        {
+            setenv("QUERY_STRING", question, 1);
+        }
+
         dup2(pipefd[1], STDOUT_FILENO); // Redirect stdout to the write end of the pipe
 
         int result = execl("/bin/bash", "bash", cgi_script, (char*)NULL);
+        //execve
 
         if (result == -1) {
             fprintf(stderr, "Error executing CGI script\n");
@@ -279,7 +321,7 @@ void* execute_script() {
             exit(EXIT_FAILURE);
         }
 
-wait(NULL);
+        wait(NULL);
 
         ssize_t bytesRead = read(pipefd[0], output, MAX_SIZE - 1);
         if (bytesRead == -1) {
@@ -294,6 +336,7 @@ wait(NULL);
         output[bytesRead] = '\0'; // Null-terminate the output
 
         printf("\n----------\nWe've executed the script, this is the ouput: %s\n----------\n",output);
+
 
         //pthread_mutex_unlock(&mutex);
 
@@ -326,7 +369,7 @@ void *handle_connection(void *server_void_ptr) {
 
             if (strncmp(buffer, "GET", 3) == 0) {
                 char *get_token = "GET /";
-                char *get_start = strstr(buffer, get_token);
+                char *get_start = strstr(bufferCopy, get_token);
 
                 if (get_start != NULL) {
                 // extract filename from request
@@ -353,6 +396,7 @@ void *handle_connection(void *server_void_ptr) {
 
                         printf("\n----------\nFile extension: %s\n----------\n", file_ext);
 
+
                         // build HTTP response
                         char *responseGet = (char *)malloc(MAX_SIZE * 10 * sizeof(char));
                         size_t response_len;
@@ -360,21 +404,74 @@ void *handle_connection(void *server_void_ptr) {
                         // Reset the response buffer
                         memset(responseGet, 0, MAX_SIZE * 10 * sizeof(char));
 
-                        printf("\n----------\nTrying to build the response.\n----------\n");
 
-                        build_http_response(fileName, file_ext, responseGet, &response_len, NULL);
+                        char *cgi_output = malloc(MAX_SIZE);
+                        cgi_output = NULL;
 
-                        printf("\n----------\nThis is the reponse: \n %s\n----------\n",responseGet);
 
-                        printf("\n----------\nWe've built the response.\nTrying to send the response.\n----------\n");
+                        if (strstr(bufferCopy, "cgi-bin/") != NULL) {
 
-                        // send HTTP response to client
-                        send(client_fd, responseGet, response_len, 0);
+                            //pthread_mutex_init(&mutex, NULL);
 
-                        printf("\n----------\nThe response has been sent.\n----------\n");
+                            //char *queryString = getenv("QUERY_STRING");
+                            
+                            //printf("\n----------\nAm extras query string-ul acesta: %s\n----------\n", queryString);
+
+                            printf("\n----------\nAm intrat in if-ul de executare script, pentru pagina %s\n----------\n", fileName);
+                            // Execute CGI script in a new thread
+                            pthread_t cgi_thread_id;
+                            pthread_create(&cgi_thread_id, NULL, execute_script, NULL);
+                            pthread_join(cgi_thread_id, (void**)&cgi_output); // Wait for the script to finish and capture its output
+
+                            //pthread_mutex_destroy(&mutex);
+
+
+                            printf("\n----------\nDin script: %s\n----------\n", cgi_output);
+
+                            printf("\n----------\nBuffer: %s\n----------\n",buffer);
+
+                            char *body_start = strstr(buffer, "\r\n\r\n") + 4;
+                            char body[MAX_SIZE];
+
+                            strncpy(body, body_start, recv_size - (body_start - buffer));
+                            body[recv_size - (body_start - buffer)] = '\0';
+
+                            printf("\n----------\nBody: %s\n----------\n",body);
+
+                            //parse_input_string(body, &data_formular);
+
+                            data_formular.data_from_cgi = cgi_output;
+
+                            build_http_response("index3.html", "html", responseGet, &response_len, data_formular.data_from_cgi);
+                                                        
+                            send(client_fd, responseGet, response_len, 0);
+
+                            printf("\n----------\nThe response has been sent.\n----------\n");
+
+                        }
+                        else
+                        {
+
+                            printf("\n----------\nTrying to build the response.\n----------\n");
+
+                            build_http_response(fileName, file_ext, responseGet, &response_len, NULL);
+
+                            printf("\n----------\nThis is the reponse: \n %s\n----------\n",responseGet);
+
+                            printf("\n----------\nWe've built the response.\nTrying to send the response.\n----------\n");
+
+                            // send HTTP response to client
+                            send(client_fd, responseGet, response_len, 0);
+
+                            printf("\n----------\nThe response has been sent.\n----------\n");
+
+                        }
+
 
                         free(responseGet);
                         free(fileName);
+                        free(cgi_output);
+                        data_formular.data_from_cgi=NULL;
 
                         //close(client_fd);
 
@@ -415,6 +512,10 @@ void *handle_connection(void *server_void_ptr) {
                     if (strstr(bufferCopy, "cgi-bin/") != NULL) {
 
                     //pthread_mutex_init(&mutex, NULL);
+
+                    //char *queryString = getenv("QUERY_STRING");
+                    
+                    //printf("\n----------\nAm extras query string-ul acesta: %s\n----------\n", queryString);
 
                     printf("\n----------\nAm intrat in if-ul de executare script, pentru pagina %s\n----------\n", fileName);
                     // Execute CGI script in a new thread
@@ -459,8 +560,59 @@ void *handle_connection(void *server_void_ptr) {
                     free(cgi_output);
                     free(responsePost);
                     data_formular.data_from_cgi=NULL;
-                    printf("\n----------\nAjunge?\n----------\n");
                     
+            } else if (strncmp(buffer, "PUT", 3) == 0) {
+
+                char *get_token = "PUT";
+                char *get_start = strstr(bufferCopy, get_token);
+
+                char *file_name_start = get_start + strlen(get_token);
+                char *file_name_end = strchr(file_name_start, ' ');
+
+                printf("\n----------\nMethod: PUT\n----------\n");
+
+                // decode URL
+                *file_name_end = '\0';
+                char *url_encoded_file_name = file_name_start;
+
+                //printf("\n%s\n", file_name_start);
+                
+                fileName=url_decode(url_encoded_file_name);
+
+                printf("\n----------\nFile name: %s\n----------\n", fileName);
+                
+                // get file extension
+                char file_ext[32];
+                strcpy(file_ext, get_file_extension(fileName));
+
+                printf("\n----------\nFile extension: %s\n----------\n", file_ext);
+
+                char *body_start = strstr(buffer, "\r\n\r\n") + 4;
+                char body[MAX_SIZE];
+
+                strncpy(body, body_start, recv_size - (body_start - buffer));
+                body[recv_size - (body_start - buffer)] = '\0';
+
+                printf("\n----------\nBody: %s\n----------\n",body);
+
+                // Build the HTTP response
+                char *responsePut=malloc(MAX_SIZE * 10*sizeof(char));
+                size_t response_len;
+
+                //responsePost=NULL;
+
+                parse_input_string(body, &data_formular);
+
+                build_http_response("index2.html", "html", responsePut, &response_len, print_parsed_data(&data_formular));
+
+                printf("\n----------\nResponse in PUT: %s\n----------\n", responsePut);
+
+                send(client_fd, responsePut, response_len, 0);
+                
+
+                free(fileName);
+                free(responsePut);
+
             }
 
         }
