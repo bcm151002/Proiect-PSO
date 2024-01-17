@@ -52,8 +52,6 @@
             <!-- Buton pentru cererea PUT -->
             <button type="button" onclick="sendPutRequest()">Trimite PUT</button>
 
-            <!-- Buton pentru cererea DELETE -->
-            <button type="button" onclick="sendDeleteRequest()">Trimite DELETE</button>
         </form>
     </font>
 
@@ -76,24 +74,6 @@
             xhr.send(new URLSearchParams(formData));
         }
 
-        function sendDeleteRequest() {
-          
-            const formData = new FormData(document.getElementById("myForm"));
-            const xhr = new XMLHttpRequest();
-            xhr.open("DELETE", "ceva.sh", true);
-            xhr.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
-            xhr.onreadystatechange = function () {
-                if (xhr.readyState === 4) {
-                    if (xhr.status === 200) {
-                        alert("Resursele au fost șterse cu succes!");
-                        document.getElementById('myForm').submit();
-                    } else {
-                        alert("Eroare la ștergerea resurselor.");
-                    }
-                }
-            };
-            xhr.send(new URLSearchParams(formData));
-        }
     </script>
 </body>
 </html>

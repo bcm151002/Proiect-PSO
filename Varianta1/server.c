@@ -10,6 +10,7 @@
 #include <sys/stat.h>
 #include <ctype.h>
 #include <sys/wait.h>
+#include <sys/epoll.h>
 
 #define MAX_SIZE 4096
 #define BUFFER_SIZE 104857600
@@ -633,10 +634,305 @@ void *handle_connection(void *server_void_ptr) {
 
     free(server);
 }
-        
 
 
-int main() {
+void handle_client_epoll(int client_fd)
+{
+      char buffer[MAX_SIZE];
+
+        while (1) 
+        { // Loop to handle multiple requests in a single connection
+            char buffer[MAX_SIZE];
+            char bufferCopy[MAX_SIZE];
+            ssize_t recv_size = recv(client_fd, buffer, MAX_SIZE, 0);
+            strcpy(bufferCopy,buffer);
+
+            if (recv_size <= 0) {
+                break;
+            }
+
+            printf("\n----------\nReceived request: %s\n----------\n",  buffer);
+
+            if (strncmp(buffer, "GET", 3) == 0) {
+                char *get_token = "GET /";
+                char *get_start = strstr(bufferCopy, get_token);
+
+                if (get_start != NULL) {
+                // extract filename from request
+                    char *file_name_start = get_start + strlen(get_token);
+                    char *file_name_end = strchr(file_name_start, ' ');
+
+                    if (file_name_end != NULL) {
+
+                        printf("\n----------\nMethod: GET\n----------\n");
+
+                        // decode URL
+                        *file_name_end = '\0';
+                        char *url_encoded_file_name = file_name_start;
+
+                        //printf("\n%s\n", file_name_start);
+                        
+                        fileName=url_decode(url_encoded_file_name);
+
+                        printf("\n----------\nFile name: %s\n----------\n", fileName);
+                        
+                        // get file extension
+                        char file_ext[32];
+                        strcpy(file_ext, get_file_extension(fileName));
+
+                        printf("\n----------\nFile extension: %s\n----------\n", file_ext);
+
+
+                        // build HTTP response
+                        char *responseGet = (char *)malloc(MAX_SIZE * 10 * sizeof(char));
+                        size_t response_len;
+
+                        // Reset the response buffer
+                        memset(responseGet, 0, MAX_SIZE * 10 * sizeof(char));
+
+
+                        char *cgi_output = malloc(MAX_SIZE);
+                        cgi_output = NULL;
+
+
+                        if (strstr(bufferCopy, "cgi-bin/") != NULL) {
+
+                            //pthread_mutex_init(&mutex, NULL);
+
+                            //char *queryString = getenv("QUERY_STRING");
+                            
+                            //printf("\n----------\nAm extras query string-ul acesta: %s\n----------\n", queryString);
+
+                            printf("\n----------\nAm intrat in if-ul de executare script, pentru pagina %s\n----------\n", fileName);
+                            // Execute CGI script in a new thread
+                            pthread_t cgi_thread_id;
+                            pthread_create(&cgi_thread_id, NULL, execute_script, NULL);
+                            pthread_join(cgi_thread_id, (void**)&cgi_output); // Wait for the script to finish and capture its output
+
+                            //pthread_mutex_destroy(&mutex);
+
+
+                            printf("\n----------\nDin script: %s\n----------\n", cgi_output);
+
+                            printf("\n----------\nBuffer: %s\n----------\n",buffer);
+
+                            char *body_start = strstr(buffer, "\r\n\r\n") + 4;
+                            char body[MAX_SIZE];
+
+                            strncpy(body, body_start, recv_size - (body_start - buffer));
+                            body[recv_size - (body_start - buffer)] = '\0';
+
+                            printf("\n----------\nBody: %s\n----------\n",body);
+
+                            //parse_input_string(body, &data_formular);
+
+                            data_formular.data_from_cgi = cgi_output;
+
+                            build_http_response("index3.html", "html", responseGet, &response_len, data_formular.data_from_cgi);
+                                                        
+                            send(client_fd, responseGet, response_len, 0);
+
+                            printf("\n----------\nThe response has been sent.\n----------\n");
+
+                        }
+                        else
+                        {
+
+                            printf("\n----------\nTrying to build the response.\n----------\n");
+
+                            build_http_response(fileName, file_ext, responseGet, &response_len, NULL);
+
+                            printf("\n----------\nThis is the reponse: \n %s\n----------\n",responseGet);
+
+                            printf("\n----------\nWe've built the response.\nTrying to send the response.\n----------\n");
+
+                            // send HTTP response to client
+                            send(client_fd, responseGet, response_len, 0);
+
+                            printf("\n----------\nThe response has been sent.\n----------\n");
+
+                        }
+
+
+                        free(responseGet);
+                        free(fileName);
+                        free(cgi_output);
+                        data_formular.data_from_cgi=NULL;
+
+                        //close(client_fd);
+
+                    }
+               }
+            
+
+            } else if (strncmp(buffer, "POST", 4) == 0) {
+
+                    char *cgi_output = malloc(MAX_SIZE);
+                    cgi_output = NULL;
+
+                    char *get_token = "POST /";
+                    char *get_start = strstr(bufferCopy, get_token);
+
+                    char *file_name_start = get_start + strlen(get_token);
+                    char *file_name_end = strchr(file_name_start, ' ');
+
+                    printf("\n----------\nMethod: POST\n----------\n");
+
+                    // decode URL
+                    *file_name_end = '\0';
+                    char *url_encoded_file_name = file_name_start;
+
+                    //printf("\n%s\n", file_name_start);
+                    
+                    fileName=url_decode(url_encoded_file_name);
+
+                    printf("\n----------\nFile name: %s\n----------\n", fileName);
+                    
+                    // get file extension
+                    char file_ext[32];
+                    strcpy(file_ext, get_file_extension(fileName));
+
+                    printf("\n----------\nFile extension: %s\n----------\n", file_ext);
+
+
+                    if (strstr(bufferCopy, "cgi-bin/") != NULL) {
+
+                    //pthread_mutex_init(&mutex, NULL);
+
+                    //char *queryString = getenv("QUERY_STRING");
+                    
+                    //printf("\n----------\nAm extras query string-ul acesta: %s\n----------\n", queryString);
+
+                    printf("\n----------\nAm intrat in if-ul de executare script, pentru pagina %s\n----------\n", fileName);
+                    // Execute CGI script in a new thread
+                    pthread_t cgi_thread_id;
+                    pthread_create(&cgi_thread_id, NULL, execute_script, NULL);
+                    pthread_join(cgi_thread_id, (void**)&cgi_output); // Wait for the script to finish and capture its output
+
+                    //pthread_mutex_destroy(&mutex);
+
+                    }
+
+                    printf("\n----------\nDin script: %s\n----------\n", cgi_output);
+
+                    printf("\n----------\nBuffer: %s\n----------\n",buffer);
+
+                    char *body_start = strstr(buffer, "\r\n\r\n") + 4;
+                    char body[MAX_SIZE];
+
+                    strncpy(body, body_start, recv_size - (body_start - buffer));
+                    body[recv_size - (body_start - buffer)] = '\0';
+
+                    printf("\n----------\nBody: %s\n----------\n",body);
+
+                    // Build the HTTP response
+                    char *responsePost=malloc(MAX_SIZE * 10*sizeof(char));
+                    size_t response_len;
+
+                    //responsePost=NULL;
+
+                    parse_input_string(body, &data_formular);
+
+                    data_formular.data_from_cgi = cgi_output;
+
+                    build_http_response("index2.html", "html", responsePost, &response_len, print_parsed_data(&data_formular));
+
+                    printf("\n----------\nResponse in post: %s\n----------\n", responsePost);
+
+                    send(client_fd, responsePost, response_len, 0);
+                    
+
+                    free(fileName);
+                    free(cgi_output);
+                    free(responsePost);
+                    data_formular.data_from_cgi=NULL;
+                    
+            } else if (strncmp(buffer, "PUT", 3) == 0) {
+
+                char *get_token = "PUT";
+                char *get_start = strstr(bufferCopy, get_token);
+
+                char *file_name_start = get_start + strlen(get_token);
+                char *file_name_end = strchr(file_name_start, ' ');
+
+                printf("\n----------\nMethod: PUT\n----------\n");
+
+                // decode URL
+                *file_name_end = '\0';
+                char *url_encoded_file_name = file_name_start;
+
+                //printf("\n%s\n", file_name_start);
+                
+                fileName=url_decode(url_encoded_file_name);
+
+                printf("\n----------\nFile name: %s\n----------\n", fileName);
+                
+                // get file extension
+                char file_ext[32];
+                strcpy(file_ext, get_file_extension(fileName));
+
+                printf("\n----------\nFile extension: %s\n----------\n", file_ext);
+
+                char *body_start = strstr(buffer, "\r\n\r\n") + 4;
+                char body[MAX_SIZE];
+
+                strncpy(body, body_start, recv_size - (body_start - buffer));
+                body[recv_size - (body_start - buffer)] = '\0';
+
+                printf("\n----------\nBody: %s\n----------\n",body);
+
+                // Build the HTTP response
+                char *responsePut=malloc(MAX_SIZE * 10*sizeof(char));
+                size_t response_len;
+
+                //responsePost=NULL;
+
+                parse_input_string(body, &data_formular);
+
+                build_http_response("index2.html", "html", responsePut, &response_len, print_parsed_data(&data_formular));
+
+                printf("\n----------\nResponse in PUT: %s\n----------\n", responsePut);
+
+                send(client_fd, responsePut, response_len, 0);
+                
+
+                free(fileName);
+                free(responsePut);
+
+            }
+
+        }
+
+        printf("\n----------\nFinished handling request, closing connection.\n----------\n");
+
+        free(data_formular.name);
+        free(data_formular.color);
+        free(data_formular.data_from_cgi);
+        free(data_formular.income);
+        free(data_formular.phone);
+        free(data_formular.qualities);
+        free(data_formular.sociability);
+
+        close(client_fd);
+}
+
+
+void handle_new_connection(int epollfd, int listenfd) {
+    int clientfd = accept(listenfd, NULL, NULL);
+    if (clientfd == -1) {
+        perror("Accept failed");
+        exit(EXIT_FAILURE);
+    }
+
+    printf("New connection accepted. Client socket fd: %d\n", clientfd);
+
+    struct epoll_event ev;
+    ev.events = EPOLLIN | EPOLLET;  // Edge-triggered mode
+    ev.data.fd = clientfd;
+    epoll_ctl(epollfd, EPOLL_CTL_ADD, clientfd, &ev);
+}
+
+int main(int argc, char **argv) {
     int server_fd;
     struct sockaddr_in server_addr;
     socklen_t addr_len = sizeof(struct sockaddr_in);
@@ -670,22 +966,123 @@ int main() {
 
     printf("Server listening on port 8080...\n");
 
-    ConnectionQueue queue = {.queue = malloc(sizeof(int) * MAX_QUEUE), .front = 0, .rear = 0};
-    sem_t queue_sem;
-    sem_init(&queue_sem, 0, 0);
-    Server server = {.server_fd = server_fd, .queue = &queue, .queue_sem = &queue_sem};
 
-    pthread_t thread_pool[THREAD_POOL_SIZE];
-    for (int i = 0; i < THREAD_POOL_SIZE; i++) {
-        pthread_create(&thread_pool[i], NULL, handle_connection, &server);
+
+
+    if(strcmp(argv[1],"-t")==0){
+        ConnectionQueue queue = {.queue = malloc(sizeof(int) * MAX_QUEUE), .front = 0, .rear = 0};
+        sem_t queue_sem;
+        sem_init(&queue_sem, 0, 0);
+        Server server = {.server_fd = server_fd, .queue = &queue, .queue_sem = &queue_sem};
+
+        pthread_t thread_pool[THREAD_POOL_SIZE];
+        for (int i = 0; i < THREAD_POOL_SIZE; i++) {
+        
+            pthread_create(&thread_pool[i], NULL, handle_connection, &server);
+        }
+
+        while (1) {
+            int client_fd = accept(server_fd, NULL, NULL);
+        
+            queue.queue[queue.rear] = client_fd;
+            queue.rear = (queue.rear + 1) % MAX_QUEUE;
+            sem_post(&queue_sem);
+        
+        }
     }
 
+    else if(strcmp(argv[1],"-p")==0)
+    { int i=0;
+        pthread_t tids[100];
+        printf("sunt in proces\n");
     while (1) {
-        int client_fd = accept(server_fd, NULL, NULL);
-        queue.queue[queue.rear] = client_fd;
-        queue.rear = (queue.rear + 1) % MAX_QUEUE;
-        sem_post(&queue_sem);
+            // client info
+            struct sockaddr_in client_addr;
+            socklen_t client_addr_len = sizeof(client_addr);
+            int client_fd;
+
+    
+            // accept client connection
+            if ((client_fd = accept(server_fd, 
+                                    (struct sockaddr *)&client_addr, 
+                                    &client_addr_len)) < 0) {
+                perror("accept failed");
+                continue;
+            }
+
+
+            // create a new process to handle client request
+            pid_t pid = fork();
+
+            if (pid == 0) {
+                // This is the child process
+        
+                close(server_fd); // Close the server socket in the child process
+
+
+            handle_client_epoll(client_fd);
+
+                close(client_fd);
+                exit(0);
+            } else if (pid > 0) {
+                // This is the parent process
+    //  pthread_join(tids[i], NULL);
+                close(client_fd); // Close the client socket in the parent process
+            } else {
+                perror("fork failed");
+            }
+            
+            
+        }
+
+    }else if(strcmp(argv[1],"-e")==0)
+    {
+        struct epoll_event ev, events[10];
+    int  clientfd, epollfd;
+    epollfd = epoll_create1(0);
+        if (epollfd == -1) {
+            perror("Epoll creation failed");
+            exit(EXIT_FAILURE);
+        }
+
+        // Add listening socket to epoll
+        ev.events = EPOLLIN;
+        ev.data.fd = server_fd;
+        epoll_ctl(epollfd, EPOLL_CTL_ADD, server_fd, &ev);
+
+
+
+        while (1) {
+            int nfds = epoll_wait(epollfd, events, 10, -1);
+            if (nfds == -1) {
+                perror("Epoll wait failed");
+                exit(EXIT_FAILURE);
+            }
+
+            for (int i = 0; i < nfds; ++i) {
+                if (events[i].data.fd == server_fd) {
+                
+                    handle_new_connection(epollfd, server_fd);
+                } else {
+                    handle_client_epoll(events[i].data.fd);
+                }
+            }
+        }
+
+        close(server_fd);
+        close(epollfd);
+
+
+
     }
+    else 
+    {
+        printf("optiune negasita\n");
+        
+        }
+
+
+
 
     return 0;
 }
