@@ -12,3 +12,6 @@ Pentru a alege modul de funcționare al serverului, folosește argumentul “-t�
 * Pagina “index2.html” are un buton nou, care implementează metoda PUT:
   - Completează din nou formularul cu date diferite, apoi apasă pe buton. Acesta va actualiza datele din pagină și le va afișa.
 * Dacă te întorci pe pagina principală, vei găsi o secțiune “username” unde poți introduce un nume de utilizator. Dacă apesi pe butonul Button Script2, se va executa scriptul “ceva2.sh” care va prelua numele de utilizator, folosind o variabilă de mediu, și îl va afișa pe pagina “index3.html”.
+
+
+![workflow](https://github.com/bcm151002/Proiect-PSO/assets/118600445/37e2657e-e910-4c54-a274-8ffbfa90ae8f)
